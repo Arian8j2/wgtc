@@ -34,7 +34,6 @@ static EGRESS_STATE: HashMap<Ipv4Addr, State> = HashMap::with_max_entries(4096, 
 static INGRESS_STATE: HashMap<Ipv4Addr, State> = HashMap::with_max_entries(4096, 0);
 
 #[repr(C)]
-#[derive(Default)]
 struct State {
     // could be u32 but we will be aligned to u64 because of time so lets keep this u64, also saves us some casts
     tokens: u64,
@@ -73,21 +72,18 @@ fn police_packet(
     let Ok(ip) = ip.map(|ip| unsafe { *ip }) else {
         return TC_ACT_SHOT;
     };
-    let state = match state.get_ptr_mut(ip) {
-        None => {
-            let new_state = State::default();
-            if state.insert(ip, new_state, 0).is_err() {
-                return TC_ACT_SHOT;
-            };
-            state
-                .get_ptr_mut(ip)
-                // unreachable, only here to satisfy validator
-                .unwrap_or_else(|| &mut State::default())
-        }
-        Some(state) => state,
-    };
-    let state = unsafe { &mut *state };
+
     let now = unsafe { bpf_ktime_get_ns() };
+    let state = state.get_ptr_mut(ip).unwrap_or_else(|| {
+        let mut new_state = State {
+            last_ns: now,
+            tokens: BURST_BYTES.load(),
+        };
+        // allow packet to pass if map instructions failed
+        let _ = state.insert(ip, &new_state, 0);
+        state.get_ptr_mut(ip).unwrap_or_else(|| &mut new_state)
+    });
+    let state = unsafe { &mut *state };
 
     let refill = (now - state.last_ns) * rate / 1_000_000_000;
     state.tokens += refill;
