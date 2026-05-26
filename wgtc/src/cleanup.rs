@@ -16,7 +16,7 @@ struct State {
 
 unsafe impl aya::Pod for State {}
 
-const CLEANUP_INTERVAL: Duration = Duration::from_secs(5);
+const CLEANUP_INTERVAL: Duration = Duration::from_secs(60 * 5);
 
 const MAXIMUM_IDLE_TIME_NS: u64 = 5 * 60 * 1_000_000_000;
 

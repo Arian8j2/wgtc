@@ -27,6 +27,7 @@ static INGRESS_BYTES_PER_SEC: Global<u64> = Global::new(0);
 #[unsafe(no_mangle)]
 static EGRESS_BYTES_PER_SEC: Global<u64> = Global::new(0);
 
+// TODO: maybe use LRU maps so we don't have a fixed cap on peers
 #[map]
 static EGRESS_STATE: HashMap<Ipv4Addr, State> = HashMap::with_max_entries(4096, 0);
 
