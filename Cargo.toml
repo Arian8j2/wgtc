@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["wgtc", "wgtc_ebpf"]
+default-members = ["wgtc"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+strip = true

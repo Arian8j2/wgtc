@@ -1,0 +1,12 @@
+[package]
+name = "wgtc_ebpf"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aya-ebpf = { git = "https://github.com/aya-rs/aya", rev = "746a4e9", default-features = false }
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya", rev = "746a4e9", default-features = false, optional = true }
+network-types = { version = "0.1.0", optional = true }
+
+[features]
+log = ["aya-log-ebpf", "network-types"]
