@@ -47,8 +47,8 @@ pub fn wgtc_ingress(ctx: TcContext) -> TcAct {
     police_packet(
         &ctx,
         IPV4_SRC_OFFSET,
-        INGRESS_BYTES_PER_SEC.load(),
-        &INGRESS_STATE,
+        EGRESS_BYTES_PER_SEC.load(),
+        &EGRESS_STATE,
     )
 }
 
@@ -58,8 +58,8 @@ pub fn wgtc_egress(ctx: TcContext) -> TcAct {
     police_packet(
         &ctx,
         IPV4_DST_OFFSET,
-        EGRESS_BYTES_PER_SEC.load(),
-        &EGRESS_STATE,
+        INGRESS_BYTES_PER_SEC.load(),
+        &INGRESS_STATE,
     )
 }
 

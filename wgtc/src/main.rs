@@ -76,7 +76,8 @@ fn main() -> anyhow::Result<()> {
 
     let mut programs = Vec::new();
     if let Some(bandwidth) = args.ingress {
-        let program = load_program(&mut ebpf, &args.interface, TcAttachType::Ingress)?;
+        // because of wg server behaviour, the egress and ingress are opposite in point of view of the client
+        let program = load_program(&mut ebpf, &args.interface, TcAttachType::Egress)?;
         programs.push(program);
         log::info!(
             "loaded ingress program, bandwidth={bandwidth}Mbit/s, burst={}KB",
@@ -85,7 +86,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     if let Some(bandwidth) = args.egress {
-        let link = load_program(&mut ebpf, &args.interface, TcAttachType::Egress)?;
+        let link = load_program(&mut ebpf, &args.interface, TcAttachType::Ingress)?;
         programs.push(link);
         log::info!(
             "loaded egress program, bandwidth={bandwidth}Mbit/s, burst={}KB",
