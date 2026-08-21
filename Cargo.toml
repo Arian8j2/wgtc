@@ -7,7 +7,6 @@ default-members = ["wgtc"]
 panic = "abort"
 
 [profile.release]
-panic = "abort"
 codegen-units = 1
 lto = true
 strip = true

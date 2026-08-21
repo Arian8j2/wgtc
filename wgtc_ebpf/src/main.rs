@@ -43,9 +43,10 @@ struct State {
 
 #[classifier]
 pub fn wgtc_ingress(ctx: TcContext) -> TcAct {
+    // let _ = print_packet(&ctx, "ingress");
     police_packet(
         &ctx,
-        IPV4_DST_OFFSET,
+        IPV4_SRC_OFFSET,
         INGRESS_BYTES_PER_SEC.load(),
         &INGRESS_STATE,
     )
@@ -53,9 +54,10 @@ pub fn wgtc_ingress(ctx: TcContext) -> TcAct {
 
 #[classifier]
 pub fn wgtc_egress(ctx: TcContext) -> TcAct {
+    // let _ = print_packet(&ctx, "egress");
     police_packet(
         &ctx,
-        IPV4_SRC_OFFSET,
+        IPV4_DST_OFFSET,
         EGRESS_BYTES_PER_SEC.load(),
         &EGRESS_STATE,
     )
@@ -75,22 +77,25 @@ fn police_packet(
     };
 
     let now = unsafe { bpf_ktime_get_ns() };
-    let state = state.get_ptr_mut(ip).unwrap_or_else(|| {
-        let mut new_state = State {
-            last_ns: now,
-            tokens: BURST_BYTES.load(),
-        };
-        // allow packet to pass if map instructions failed
-        let _ = state.insert(ip, &new_state, 0);
-        state.get_ptr_mut(ip).unwrap_or_else(|| &mut new_state)
-    });
+    let state = match state.get_ptr_mut(ip) {
+        Some(s) => s,
+        None => {
+            let new_state = State {
+                last_ns: now,
+                tokens: BURST_BYTES.load(),
+            };
+            let _ = state.insert(ip, &new_state, 0);
+            match state.get_ptr_mut(ip) {
+                // allow packet to pass if map instructions failed
+                None => return TC_ACT_OK,
+                Some(s) => s,
+            }
+        }
+    };
     let state = unsafe { &mut *state };
 
     let refill = (now - state.last_ns) * rate / 1_000_000_000;
-    state.tokens += refill;
-    if refill > BURST_BYTES.load() {
-        state.tokens = BURST_BYTES.load();
-    }
+    state.tokens = core::cmp::min(state.tokens.saturating_add(refill), BURST_BYTES.load());
 
     state.last_ns = now;
     if state.tokens >= ctx.len() as u64 {
@@ -104,7 +109,7 @@ fn police_packet(
 // used for debugging
 #[allow(dead_code)]
 #[cfg(feature = "log")]
-fn print_packet(ctx: &TcContext) -> Result<(), ()> {
+fn print_packet(ctx: &TcContext, context: &str) -> Result<(), ()> {
     use aya_log_ebpf::info;
     use network_types::{
         ip::{IpProto, Ipv4Hdr},
@@ -127,10 +132,13 @@ fn print_packet(ctx: &TcContext) -> Result<(), ()> {
         let dst_port = unsafe { (*udp).dst_port() };
         info!(
             ctx,
-            "{:i}:{} --{}--> {:i}:{}", src, src_port, proto_name, dst, dst_port
+            "{} {:i}:{} --{}--> {:i}:{}", context, src, src_port, proto_name, dst, dst_port
         );
     } else {
-        info!(ctx, "{:i} --({})--> {:i}", src, protocol as u8, dst);
+        info!(
+            ctx,
+            "{} {:i} --({})--> {:i}", context, src, protocol as u8, dst
+        );
     }
     Ok(())
 }
