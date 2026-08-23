@@ -17,6 +17,7 @@ type Ipv4Addr = u32;
 // because we attach ebpf to wireguard interface we only deal with l3 packets so the offsets are from ip header
 const IPV4_SRC_OFFSET: usize = 12;
 const IPV4_DST_OFFSET: usize = 16;
+const IPV4_PROTOCOL_OFFSET: usize = 9;
 
 #[unsafe(no_mangle)]
 static BURST_BYTES: Global<u64> = Global::new(0);
@@ -26,6 +27,9 @@ static INGRESS_BYTES_PER_SEC: Global<u64> = Global::new(0);
 
 #[unsafe(no_mangle)]
 static EGRESS_BYTES_PER_SEC: Global<u64> = Global::new(0);
+
+#[unsafe(no_mangle)]
+static PROTOCOL: Global<u8> = Global::new(0);
 
 // TODO: maybe use LRU maps so we don't have a fixed cap on peers
 #[map]
@@ -71,10 +75,18 @@ fn police_packet(
     rate: u64,
     state: &HashMap<Ipv4Addr, State>,
 ) -> TcAct {
-    let ip = unsafe { ptr_at::<u32>(&ctx, ip_offset) };
+    let ip = unsafe { ptr_at::<u32>(ctx, ip_offset) };
     let Ok(ip) = ip.map(|ip| unsafe { *ip }) else {
         return TC_ACT_SHOT;
     };
+
+    let protocol = PROTOCOL.load();
+    if protocol != 0 {
+        let packet_proto = unsafe { ptr_at::<u8>(ctx, IPV4_PROTOCOL_OFFSET).ok() };
+        if packet_proto.is_none_or(|proto| unsafe { *proto } != protocol) {
+            return TC_ACT_OK;
+        }
+    }
 
     let now = unsafe { bpf_ktime_get_ns() };
     let state = match state.get_ptr_mut(ip) {

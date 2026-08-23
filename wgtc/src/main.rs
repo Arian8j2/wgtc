@@ -10,6 +10,7 @@ use aya::{
 use clap::Parser;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
+use std::str::FromStr;
 
 mod cleanup;
 
@@ -30,6 +31,29 @@ struct Args {
     /// Burst in KByte
     #[arg(short, long, default_value = "128")]
     burst: u32,
+
+    /// If provided will only limit the specified protocol
+    #[arg(short, long)]
+    protocol: Option<Protocol>,
+}
+
+// must match https://www.iana.org/assignments/protocol-numbers
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
+enum Protocol {
+    Udp = 17,
+    Tcp = 6,
+}
+
+impl FromStr for Protocol {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "udp" => Ok(Self::Udp),
+            "tcp" => Ok(Self::Tcp),
+            _ => Err("valid protocols: tcp, udp"),
+        }
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -60,8 +84,14 @@ fn main() -> anyhow::Result<()> {
     let ingress_rate = args.ingress.unwrap_or(0) as u64 * 1024 * 1024 / 8;
     let egress_rate = args.egress.unwrap_or(0) as u64 * 1024 * 1024 / 8;
 
+    let protocol = args
+        .protocol
+        .as_ref()
+        .map(|&proto| proto as u8)
+        .unwrap_or(0);
     let mut ebpf = aya::EbpfLoader::new()
         .override_global("BURST_BYTES", &(args.burst as u64 * 1024), true)
+        .override_global("PROTOCOL", &protocol, true)
         .override_global("INGRESS_BYTES_PER_SEC", &ingress_rate, true)
         .override_global("EGRESS_BYTES_PER_SEC", &egress_rate, true)
         .load(aya::include_bytes_aligned!(concat!(
