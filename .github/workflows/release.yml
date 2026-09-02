@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "*"
@@ -39,12 +40,14 @@ jobs:
         run: cargo build --locked --release --target "${TARGET}" --package "${BIN_NAME}"
 
       - name: Prepare release asset
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         run: |
           mkdir -p dist
           cp "target/${TARGET}/release/${BIN_NAME}" "dist/${BIN_NAME}-${TARGET}"
           chmod +x "dist/${BIN_NAME}-${TARGET}"
 
       - name: Create GitHub release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
