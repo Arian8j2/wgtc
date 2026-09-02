@@ -2,6 +2,9 @@ use anyhow::Context;
 use aya_build::Toolchain;
 
 fn main() -> anyhow::Result<()> {
+    const EBPF_RUST_VERSION: &str = "WGTC_EBPF_RUST_VERSION";
+    println!("cargo:rerun-if-env-changed={EBPF_RUST_VERSION}");
+
     let cargo_metadata::Metadata { packages, .. } = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
@@ -28,5 +31,11 @@ fn main() -> anyhow::Result<()> {
         },
         ..Default::default()
     };
-    aya_build::build_ebpf([ebpf_package], Toolchain::default())
+    let ebpf_rust_version = std::env::var(EBPF_RUST_VERSION).ok();
+    let toolchain = ebpf_rust_version
+        .as_deref()
+        .map(Toolchain::Custom)
+        .unwrap_or_default();
+
+    aya_build::build_ebpf([ebpf_package], toolchain)
 }
